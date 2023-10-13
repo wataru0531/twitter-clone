@@ -95,7 +95,6 @@ const TweetInput: React.FC = () => {
     setTweetMsg("");
   };
 
-
   return (
     <>
       <form onSubmit={ sendTweet }>
@@ -104,6 +103,7 @@ const TweetInput: React.FC = () => {
           <Avatar
             className={styles.tweet_avatar}
             src={user.photoUrl}
+
             // サインアウト
             onClick={async () => {
               await auth.signOut();
