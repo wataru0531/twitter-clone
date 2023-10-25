@@ -1,22 +1,22 @@
 /**************************************************************
 
-
+Auth 認証画面
 
 ***************************************************************/
 import React, { useState } from "react";
-
-import styles from "./Auth.module.css";
 import { useDispatch } from "react-redux";
 import { updateUserProfile } from "../features/userSlice";
 import { auth, provider, storage } from "../firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
+import styles from "./Auth.module.css";
+
 
 import {
   signInWithPopup,
   sendPasswordResetEmail,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword, // 新規登録
+  signInWithEmailAndPassword,     // 新規登録後のログイン(displayNameは生成されない)
   updateProfile,
 } from "firebase/auth";
 
@@ -111,19 +111,24 @@ const Auth: React.FC = () => {
 
   const [ isLogin, setIsLogin ] = useState(true);
 
-  const [ openModal, setOpenModal ] = React.useState(false);
+  const [ openModal, setOpenModal ] = useState(false);
   const [ resetEmail, setResetEmail ] = useState("");
 
-  // パスワードを忘れた際に際にリセットするための関数
+  // パスワードを忘れた際にリセットするための関数
+  // GoogleのOAuth認証の機能ではなく、メールアドレスとパスワードでアカウントを作ったユーザーに対しての機能
   const sendResetEmail = async (e: React.MouseEvent<HTMLElement>) => {
 
     await sendPasswordResetEmail(auth, resetEmail)
       .then(() => {
+        // 成功した時の処理
         setOpenModal(false);
+
         setResetEmail("");
       })
       .catch((err) => {
+        // 失敗した時の処理
         alert(err.message);
+
         setResetEmail("");
       });
   };
@@ -131,16 +136,18 @@ const Auth: React.FC = () => {
   // 
   const onChangeImageHandler = (e: React.ChangeEvent<HTMLInputElement>) => {
     // ! ... Typescriptのコンパイラにnullまたはundefinedではないと通知
-    // ! がなかったら、コンパイラがnullの可能性があるものに対して要素へのアクセスができないとエラーを吐く
+    // ! がなかったら、コンパイラがnullの可能性があるものに対して[0]へのアクセスができないとエラーを吐く
     if (e.target.files![0]) {
       setAvatarImage(e.target.files![0]);
 
-      // 毎回反応するように?
+      // onChangeが毎回反応するように?
       e.target.value = "";
     }
   };
 
-  // メールアドレス、パワワードでサインイン
+  // ログイン用の関数。メールアドレス、パワワードでサインイン
+  // signInWithEmailAndPassword だけでは、displayNameがnullになる。
+  // 既に登録されているデータを元にログインするので、displayNameも表示される
   const signInEmail = async () => {
     await signInWithEmailAndPassword(auth, email, password);
   };
@@ -152,6 +159,7 @@ const Auth: React.FC = () => {
       email,
       password
     );
+    // console.log(authUser); // UserCredentialImpl {}
 
     // cloud storageにアバター画像を保存。どこに保存するか識別するためのurlを作る
     let url = "";
@@ -169,22 +177,23 @@ const Auth: React.FC = () => {
 
       const fileName = randomChar + "_" + avatarImage.name;
 
-      //
+      // avatarsフォルダに画像をアップロード
       await uploadBytes(ref(storage, `avatars/${fileName}`), avatarImage);
 
+      // 今アップロードしているファイルのURLを取得、再代入
       url = await getDownloadURL(ref(storage, `avatars/${fileName}`));
     }
 
-    //
+    // ここでfirebaseが持っている、displayNameとphotoURL を更新
+    // メールアドレスとパスワード認証に追加してデータをfirebaseに通知することができる
     if (authUser.user) {
-      // updateProfile ... authの機能。
-      await updateProfile(authUser.user, {
+      await updateProfile(authUser.user, { // updateProfile ... authの機能。
         displayName: username,
-        photoURL: url, // 
+        photoURL: url,
       });
     }
 
-    dispatch(
+    dispatch( // reduxにも通知
       updateUserProfile({
         displayName: username,
         photoUrl: url,
@@ -192,7 +201,9 @@ const Auth: React.FC = () => {
     );
   };
 
-  // ポップアップ表示でログイン
+  // OnAuth認証。ポップアップ表示でログイン
+  // この方式を使えば、displayNameや画像が自動で入る。
+  // メールアドレスとパスワードの方式ではdisplayNameやパスワードは自作する必要がある
   const signInGoogle = async () => {
     await signInWithPopup(auth, provider).catch((err) => alert(err.message));
   };
@@ -216,10 +227,11 @@ const Auth: React.FC = () => {
           {/* フォーム */}
           <form className={classes.form} noValidate>
 
-            {/* 新規登録モードの時のみ */}
+            {/* 新規登録モードの時のみ表示 */}
+            {/* パスワードとメールアドレスのログインではdisplayNameが設定されないために設定 */}
             {!isLogin && (
               <>
-                {/* ユーザー名 */}
+                {/* ユーザー名 displayName */}
                 <TextField
                   variant="outlined"
                   margin="normal"
@@ -261,6 +273,7 @@ const Auth: React.FC = () => {
                 </Box>
               </>
             )}
+            {/* 新規登録モードの時のみ */}
 
             <TextField
               variant="outlined"
@@ -295,7 +308,7 @@ const Auth: React.FC = () => {
 
             {/* ログインボタン */}
             <Button
-              // true (ログインモードの時) ... 入力がない場合、6文字未満の場合はボタンを無効化
+              // true (ログインモードの時) ... メールアドレスがない、6文字未満の場合はボタンを無効化
               // false(新規登録モードの時) ... ユーザー名がない、メールアドレスが6文字未満、アバター画像がない
               disabled={ // trueなら非表示
                 isLogin
@@ -310,14 +323,14 @@ const Auth: React.FC = () => {
               startIcon={<EmailIcon />}
               onClick={
                 isLogin
-                  ? async () => { // ログインモードの時
+                  ? async () => { // ログインモードの時の処理
                       try {
                         await signInEmail();
                       } catch (err: any) {
                         alert(err.message);
                       }
                     }
-                  : async () => { // 登録モードの時
+                  : async () => { // 登録モードの時の処理
                       try {
                         await signUpEmail();
                       } catch (err: any) {
@@ -358,7 +371,7 @@ const Auth: React.FC = () => {
 
             </Grid>
             
-            {/* Googleポップアップ認証ボタン */}
+            {/* GoogleOnAuth認証 */}
             <Button
               fullWidth
               variant="contained"
@@ -369,13 +382,17 @@ const Auth: React.FC = () => {
             >
               SignIn with Google
             </Button>
-            {/* Googleポップアップ認証ボタン */}
+            {/* GoogleOnAuth認証 */}
 
           </form>
 
           {/* パスワードを忘れた際にリセットするためのモーダル */}
           {/* openがtrue、falseで開くか閉じる */}
-          <Modal open={openModal} onClose={() => setOpenModal(false)}>
+          <Modal 
+            open={ openModal } 
+            // onClose...モーダル以外の場所をクリックした時のイベント
+            onClose={() => setOpenModal(false)}
+          >
             <div style={ getModalStyle() } className={ classes.modal }>
               <div className={styles.login_modal}>
                 <TextField
@@ -385,7 +402,7 @@ const Auth: React.FC = () => {
                   type="email"
                   name="email"
                   label="Reset E-mail"
-                  value={resetEmail}
+                  value={ resetEmail }
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                     setResetEmail(e.target.value);
                   }}
