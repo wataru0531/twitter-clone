@@ -9,7 +9,6 @@ import { getFirestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 
-
 const firebaseConfig = {
   apiKey: process.env.REACT_APP_FIREBASE_APIKEY,
   authDomain: process.env.REACT_APP_FIREBASE_DOMAIN,
@@ -19,10 +18,10 @@ const firebaseConfig = {
   appId: process.env.REACT_APP_FIREBASE_APP_ID,
 };
 
-// 初期化
+// アプリを初期化
 const app = initializeApp(firebaseConfig);
 
 export const storage = getStorage(app);
-export const auth    = getAuth(app);
-export const db      = getFirestore(app);
-export const provider = new GoogleAuthProvider(); // 認証機能
+export const auth    = getAuth(app);   
+export const db      = getFirestore(app); // 
+export const provider = new GoogleAuthProvider(); // OAuthの認証機能
